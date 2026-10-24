@@ -1,0 +1,31 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Environment / secrets — never commit real values
+.env
+.env.*
+!.env.example
+*.pfx
+*.pem
+*.key
+appsettings.Development.json
+appsettings.*.local.json
+secrets.json
+
+# Docker / local data volumes
+.data/
+docker-compose.override.yml
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log

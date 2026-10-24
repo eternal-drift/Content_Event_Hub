@@ -20,7 +20,9 @@ considerations:
   endpoint and a metrics endpoint without extra framework weight.
 
 ## Decision
-Build the system in **.NET 8**, using:
+Build the system in **.NET 10** (the SDK available in the dev environment at
+implementation time; the design has no dependency on a specific .NET version and
+would work unchanged on .NET 8+), using:
 - `Confluent.Kafka` for producer/consumer clients.
 - `Confluent.SchemaRegistry` + `Confluent.SchemaRegistry.Serdes.Json` (or `.Avro`) for
   schema-enforced (de)serialization.

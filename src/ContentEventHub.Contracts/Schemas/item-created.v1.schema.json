@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "com.contenthub.item.created.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["itemId", "sourceSystem", "title", "contentType", "createdBy", "createdAt"],
+  "properties": {
+    "itemId": { "type": "string" },
+    "sourceSystem": { "type": "string" },
+    "title": { "type": "string" },
+    "contentType": { "type": "string" },
+    "createdBy": { "type": "string" },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}

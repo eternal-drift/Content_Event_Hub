@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-ContentEventHub.Producers-c608cc1b-5d36-46fb-acf6-b134e2808d6a</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ContentEventHub.Contracts\ContentEventHub.Contracts.csproj" />
+    <ProjectReference Include="..\ContentEventHub.Shared\ContentEventHub.Shared.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ContentEventHub.Consumers/ContentEventHub.Consumers.csproj" />
+    <Project Path="src/ContentEventHub.Contracts/ContentEventHub.Contracts.csproj" />
+    <Project Path="src/ContentEventHub.DlqOperator/ContentEventHub.DlqOperator.csproj" />
+    <Project Path="src/ContentEventHub.Producers/ContentEventHub.Producers.csproj" />
+    <Project Path="src/ContentEventHub.Shared/ContentEventHub.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ContentEventHub.Tests/ContentEventHub.Tests.csproj" />
+  </Folder>
+</Solution>

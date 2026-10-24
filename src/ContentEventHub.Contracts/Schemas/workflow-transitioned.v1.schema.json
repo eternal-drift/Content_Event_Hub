@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "com.contenthub.workflow.transitioned.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["itemId", "sourceSystem", "fromState", "toState", "transitionedBy", "transitionedAt"],
+  "properties": {
+    "itemId": { "type": "string" },
+    "sourceSystem": { "type": "string" },
+    "fromState": { "type": "string" },
+    "toState": { "type": "string" },
+    "transitionedBy": { "type": "string" },
+    "transitionedAt": { "type": "string", "format": "date-time" }
+  }
+}

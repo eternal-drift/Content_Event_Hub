@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "com.contenthub.permissions.changed.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["itemId", "sourceSystem", "changedBy", "grantedTo", "revokedFrom", "changedAt"],
+  "properties": {
+    "itemId": { "type": "string" },
+    "sourceSystem": { "type": "string" },
+    "changedBy": { "type": "string" },
+    "grantedTo": { "type": "array", "items": { "type": "string" } },
+    "revokedFrom": { "type": "array", "items": { "type": "string" } },
+    "changedAt": { "type": "string", "format": "date-time" }
+  }
+}

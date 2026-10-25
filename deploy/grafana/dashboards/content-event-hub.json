@@ -1,0 +1,62 @@
+{
+  "title": "Content Event Hub",
+  "uid": "content-event-hub",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Consumer Lag",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "contenthub_consumer_lag",
+          "legendFormat": "{{group}} / {{topic}} / p{{partition}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "DLQ Depth",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "contenthub_dlq_depth",
+          "legendFormat": "{{topic}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Consumer Queue Depth (backpressure)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "contenthub_consumer_queue_depth",
+          "legendFormat": "{{group}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Messages Processed vs Failed (rate)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(contenthub_messages_processed_total[1m])",
+          "legendFormat": "processed {{group}}/{{topic}}"
+        },
+        {
+          "expr": "rate(contenthub_messages_failed_total[1m])",
+          "legendFormat": "failed {{group}}/{{topic}}"
+        }
+      ]
+    }
+  ]
+}

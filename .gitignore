@@ -4,6 +4,7 @@ obj/
 *.user
 *.suo
 .vs/
+.claude/agents/
 
 # Environment / secrets — never commit real values
 .env

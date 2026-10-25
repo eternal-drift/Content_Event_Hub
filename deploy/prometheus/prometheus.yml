@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: content-event-hub-producers
+    static_configs:
+      - targets: ["host.docker.internal:5101"]
+
+  - job_name: content-event-hub-consumers
+    static_configs:
+      - targets: ["host.docker.internal:5102"]
+
+  - job_name: content-event-hub-dlq-operator
+    static_configs:
+      - targets: ["host.docker.internal:5103"]
+
+  - job_name: redpanda
+    static_configs:
+      - targets: ["redpanda:9644"]

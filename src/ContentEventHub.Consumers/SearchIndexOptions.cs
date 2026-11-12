@@ -1,11 +1,18 @@
+using ContentEventHub.Shared;
+
 namespace ContentEventHub.Consumers;
 
 public sealed class SearchIndexerOptions
 {
     public const string SectionName = "SearchIndexer";
 
-    public int BatchSize { get; init; } = 50;
-    public int BatchWindowSeconds { get; init; } = 5;
+    /// <summary>Replay-tolerant, throughput-oriented group: larger buffer, infrequent commits (ADR 0006, ADR 0007).</summary>
+    public BackpressureOptions Backpressure { get; init; } = new()
+    {
+        Capacity = 1000,
+        ConcurrencyLimit = 8,
+        CommitIntervalMs = 5000,
+    };
 
     /// <summary>
     /// When true, the indexer seeks every assigned partition to the beginning on

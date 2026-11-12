@@ -37,12 +37,14 @@ public sealed class EventProducer<TData> : IAsyncDisposable
     public async Task<DeliveryResult<string, CloudEventEnvelope<TData>>> PublishAsync(
         string topic,
         CloudEventEnvelope<TData> envelope,
+        Headers? headers = null,
         CancellationToken cancellationToken = default)
     {
         var message = new Message<string, CloudEventEnvelope<TData>>
         {
             Key = envelope.PartitionKey,
             Value = envelope,
+            Headers = headers,
         };
 
         return await _producer.ProduceAsync(topic, message, cancellationToken);

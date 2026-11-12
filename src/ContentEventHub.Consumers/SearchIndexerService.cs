@@ -10,11 +10,13 @@ namespace ContentEventHub.Consumers;
 /// Replay-tolerant, batch-oriented consumer group: buffers messages and commits offsets
 /// only after a full batch (by count or time window) has been applied to the index,
 /// trading latency for throughput. Supports rebuilding the index from scratch by
-/// replaying topics from the beginning (ADR 0006).
+/// replaying topics from the beginning (ADR 0006). Messages that fail processing after
+/// retry are routed to the DLQ rather than blocking the batch indefinitely (ADR 0005).
 /// </summary>
 public sealed class SearchIndexerService(
     KafkaOptions kafkaOptions,
     IOptions<SearchIndexerOptions> options,
+    IOptions<ChaosOptions> chaosOptions,
     SearchIndexStore indexStore,
     ILogger<SearchIndexerService> logger) : BackgroundService
 {
@@ -33,11 +35,13 @@ public sealed class SearchIndexerService(
             logger.LogWarning("[{Group}] replay mode enabled — rebuilding index from the beginning of all topics", GroupId);
         }
 
+        var failureInjector = new FailureInjector(chaosOptions.Value);
+
         var tasks = new[]
         {
-            RunTopicLoopAsync<ItemCreated>(Topics.Items, groupOptions, ApplyItemCreated, stoppingToken),
-            RunTopicLoopAsync<PermissionsChanged>(Topics.Permissions, groupOptions, ApplyPermissionsChanged, stoppingToken),
-            RunTopicLoopAsync<WorkflowTransitioned>(Topics.Workflow, groupOptions, ApplyWorkflowTransitioned, stoppingToken),
+            RunTopicLoopAsync<ItemCreated>(Topics.Items, groupOptions, failureInjector, ApplyItemCreated, stoppingToken),
+            RunTopicLoopAsync<PermissionsChanged>(Topics.Permissions, groupOptions, failureInjector, ApplyPermissionsChanged, stoppingToken),
+            RunTopicLoopAsync<WorkflowTransitioned>(Topics.Workflow, groupOptions, failureInjector, ApplyWorkflowTransitioned, stoppingToken),
         };
 
         return Task.WhenAll(tasks);
@@ -46,11 +50,14 @@ public sealed class SearchIndexerService(
     private Task RunTopicLoopAsync<TData>(
         string topic,
         ConsumerGroupOptions groupOptions,
+        FailureInjector failureInjector,
         Action<CloudEventEnvelope<TData>> apply,
         CancellationToken stoppingToken) =>
-        Task.Run(() =>
+        Task.Run(async () =>
         {
             using var consumer = new EventConsumer<TData>(kafkaOptions, groupOptions, topic);
+            await using var dlqProducer = new EventProducer<TData>(kafkaOptions);
+            var dlqTopic = Topics.DlqFor(topic);
 
             var batchSize = 0;
             var batchStartedAt = DateTimeOffset.UtcNow;
@@ -62,17 +69,36 @@ public sealed class SearchIndexerService(
                 var result = consumer.Consume(TimeSpan.FromMilliseconds(500));
                 if (result is not null)
                 {
-                    try
+                    var envelope = result.Message.Value;
+                    var outcome = await RetryPolicy.ExecuteAsync(() =>
                     {
-                        apply(result.Message.Value);
-                        pendingOffsets[result.TopicPartition] = result.Offset + 1;
-                        batchSize++;
-                    }
-                    catch (Exception ex)
+                        failureInjector.MaybeThrow($"{envelope.Type} id={envelope.Id}");
+                        apply(envelope);
+                        return Task.CompletedTask;
+                    });
+
+                    if (outcome.Outcome != ProcessingOutcome.Succeeded)
                     {
-                        logger.LogError(ex, "[{Group}] failed to index {Topic} offset {Offset}",
-                            GroupId, topic, result.Offset);
+                        logger.LogWarning(
+                            "[{Group}] {Topic} offset {Offset} failed ({Outcome} after {Attempts} attempts) — routing to {DlqTopic}",
+                            GroupId, topic, result.Offset, outcome.Outcome, outcome.Attempts, dlqTopic);
+
+                        var metadata = new DlqFailureMetadata(
+                            ConsumerGroup: GroupId,
+                            FailureReason: outcome.LastException?.Message ?? "unknown",
+                            FailureCount: outcome.Attempts,
+                            OriginalTopic: topic,
+                            OriginalPartition: result.Partition.Value,
+                            OriginalOffset: result.Offset.Value,
+                            FirstFailedAt: DateTimeOffset.UtcNow);
+
+                        await dlqProducer.PublishAsync(dlqTopic, envelope, metadata.ToHeaders(), stoppingToken);
                     }
+
+                    // Advance the batch's committable offset whether the message was indexed
+                    // or routed to the DLQ — either way it's been handled, not blocking the batch.
+                    pendingOffsets[result.TopicPartition] = result.Offset + 1;
+                    batchSize++;
                 }
 
                 var batchWindowElapsed =

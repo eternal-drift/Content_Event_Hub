@@ -70,7 +70,7 @@ public sealed class ContentSystemSimulator(
             },
         };
 
-        await itemProducer.PublishAsync(Topics.Items, envelope, cancellationToken);
+        await itemProducer.PublishAsync(Topics.Items, envelope, cancellationToken: cancellationToken);
         _knownItemIds.Add(itemId);
         logger.LogInformation("[{Source}] published ItemCreated {ItemId}", sourceSystem, itemId);
     }
@@ -100,7 +100,7 @@ public sealed class ContentSystemSimulator(
             },
         };
 
-        await permissionsProducer.PublishAsync(Topics.Permissions, envelope, cancellationToken);
+        await permissionsProducer.PublishAsync(Topics.Permissions, envelope, cancellationToken: cancellationToken);
         logger.LogInformation("[{Source}] published PermissionsChanged {ItemId}", sourceSystem, itemId);
     }
 
@@ -128,7 +128,7 @@ public sealed class ContentSystemSimulator(
             },
         };
 
-        await workflowProducer.PublishAsync(Topics.Workflow, envelope, cancellationToken);
+        await workflowProducer.PublishAsync(Topics.Workflow, envelope, cancellationToken: cancellationToken);
         logger.LogInformation("[{Source}] published WorkflowTransitioned {ItemId}", sourceSystem, itemId);
     }
 }

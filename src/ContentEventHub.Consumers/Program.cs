@@ -9,6 +9,8 @@ var kafkaOptions = builder.Configuration.GetSection(KafkaOptions.SectionName).Ge
 builder.Services.AddSingleton(kafkaOptions);
 builder.Services.Configure<SearchIndexerOptions>(
     builder.Configuration.GetSection(SearchIndexerOptions.SectionName));
+builder.Services.Configure<ChaosOptions>(
+    builder.Configuration.GetSection(ChaosOptions.SectionName));
 builder.Services.AddSingleton<SearchIndexStore>();
 
 builder.Services.AddHostedService<NotificationForwarderService>();

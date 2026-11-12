@@ -1,6 +1,7 @@
 using ContentEventHub.Contracts;
 using ContentEventHub.Contracts.Events;
 using ContentEventHub.Shared;
+using Microsoft.Extensions.Options;
 
 namespace ContentEventHub.Consumers;
 
@@ -8,32 +9,41 @@ namespace ContentEventHub.Consumers;
 /// Near-real-time consumer group: forwards every event to a (simulated) webhook as soon
 /// as it arrives, committing the offset immediately after each successful delivery.
 /// Tolerates at-least-once duplicate delivery — webhook receivers are expected to dedup
-/// on the CloudEvents <c>Id</c> (ADR 0006).
+/// on the CloudEvents <c>Id</c> (ADR 0006). Failures that exhaust retry are routed to the
+/// per-topic DLQ rather than blocking the partition (ADR 0005).
 /// </summary>
 public sealed class NotificationForwarderService(
-    KafkaOptions kafkaOptions, ILogger<NotificationForwarderService> logger) : BackgroundService
+    KafkaOptions kafkaOptions,
+    IOptions<ChaosOptions> chaosOptions,
+    ILogger<NotificationForwarderService> logger) : BackgroundService
 {
     private const string GroupId = "notification-forwarder";
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var groupOptions = new ConsumerGroupOptions { GroupId = GroupId };
+        var failureInjector = new FailureInjector(chaosOptions.Value);
 
         var tasks = new[]
         {
-            RunTopicLoopAsync<ItemCreated>(Topics.Items, groupOptions, stoppingToken),
-            RunTopicLoopAsync<PermissionsChanged>(Topics.Permissions, groupOptions, stoppingToken),
-            RunTopicLoopAsync<WorkflowTransitioned>(Topics.Workflow, groupOptions, stoppingToken),
+            RunTopicLoopAsync<ItemCreated>(Topics.Items, groupOptions, failureInjector, stoppingToken),
+            RunTopicLoopAsync<PermissionsChanged>(Topics.Permissions, groupOptions, failureInjector, stoppingToken),
+            RunTopicLoopAsync<WorkflowTransitioned>(Topics.Workflow, groupOptions, failureInjector, stoppingToken),
         };
 
         return Task.WhenAll(tasks);
     }
 
     private Task RunTopicLoopAsync<TData>(
-        string topic, ConsumerGroupOptions groupOptions, CancellationToken stoppingToken) =>
-        Task.Run(() =>
+        string topic,
+        ConsumerGroupOptions groupOptions,
+        FailureInjector failureInjector,
+        CancellationToken stoppingToken) =>
+        Task.Run(async () =>
         {
             using var consumer = new EventConsumer<TData>(kafkaOptions, groupOptions, topic);
+            await using var dlqProducer = new EventProducer<TData>(kafkaOptions);
+            var dlqTopic = Topics.DlqFor(topic);
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -43,25 +53,44 @@ public sealed class NotificationForwarderService(
                     continue;
                 }
 
-                try
+                var envelope = result.Message.Value;
+                var outcome = await RetryPolicy.ExecuteAsync(
+                    () => ForwardToWebhookAsync(envelope, failureInjector));
+
+                if (outcome.Outcome == ProcessingOutcome.Succeeded)
                 {
-                    ForwardToWebhook(result.Message.Value);
                     consumer.Commit(result);
+                    continue;
                 }
-                catch (Exception ex)
-                {
-                    // Retry/DLQ routing for failed deliveries is handled in the
-                    // dead-letter pipeline (ADR 0005) — not yet wired into this loop.
-                    logger.LogError(ex, "[{Group}] failed to forward {Topic} offset {Offset}",
-                        GroupId, topic, result.Offset);
-                }
+
+                logger.LogWarning(
+                    "[{Group}] {Topic} offset {Offset} failed ({Outcome} after {Attempts} attempts) — routing to {DlqTopic}",
+                    GroupId, topic, result.Offset, outcome.Outcome, outcome.Attempts, dlqTopic);
+
+                var metadata = new DlqFailureMetadata(
+                    ConsumerGroup: GroupId,
+                    FailureReason: outcome.LastException?.Message ?? "unknown",
+                    FailureCount: outcome.Attempts,
+                    OriginalTopic: topic,
+                    OriginalPartition: result.Partition.Value,
+                    OriginalOffset: result.Offset.Value,
+                    FirstFailedAt: DateTimeOffset.UtcNow);
+
+                await dlqProducer.PublishAsync(dlqTopic, envelope, metadata.ToHeaders(), stoppingToken);
+
+                // Unblock the partition — the failure is now visible and recoverable via the DLQ operator.
+                consumer.Commit(result);
             }
         }, stoppingToken);
 
-    private void ForwardToWebhook<TData>(CloudEventEnvelope<TData> envelope)
+    private Task ForwardToWebhookAsync<TData>(CloudEventEnvelope<TData> envelope, FailureInjector failureInjector)
     {
+        failureInjector.MaybeThrow($"{envelope.Type} id={envelope.Id}");
+
         logger.LogInformation(
             "[{Group}] webhook ← {Type} id={Id} key={Key}",
             GroupId, envelope.Type, envelope.Id, envelope.PartitionKey);
+
+        return Task.CompletedTask;
     }
 }
